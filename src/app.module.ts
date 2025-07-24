@@ -5,8 +5,8 @@ import { AppService } from './app.service';
 import { Web3Module } from './web3/web3.module';
 import { TrackingModule } from './tracking/tracking.module';
 import { ConfigModule } from '@nestjs/config';
-import { Event } from './entities/event.entity';
-import { EventRepository } from './repositories/event.repository';
+import { StockManagerEvent } from './entities/stock_manager_events';
+import { StockManagerEventRepository } from './repositories/stock_manager_events.repository';
 
 @Module({
   imports: [
@@ -20,12 +20,12 @@ import { EventRepository } from './repositories/event.repository';
       autoLoadEntities: true,
       synchronize: true,
     }),
-    TypeOrmModule.forFeature([Event]),
+    TypeOrmModule.forFeature([StockManagerEvent]),
     Web3Module,
     TrackingModule
   ],
   controllers: [AppController],
-  providers: [AppService, EventRepository],
-  exports: [EventRepository],
+  providers: [AppService, StockManagerEventRepository],
+  exports: [StockManagerEventRepository],
 })
 export class AppModule {}

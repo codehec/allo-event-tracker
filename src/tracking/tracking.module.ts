@@ -1,13 +1,13 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TrackingController } from './tracking.controller';
-import { EventRepository } from '../repositories/event.repository';
-import { Event } from '../entities/event.entity';
+import { StockManagerEventRepository } from '../repositories/stock_manager_events.repository';
+import { StockManagerEvent } from '../entities/stock_manager_events';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Event])],
+  imports: [TypeOrmModule.forFeature([StockManagerEvent])],
   controllers: [TrackingController],
-  providers: [EventRepository],
-  exports: [EventRepository]
+  providers: [StockManagerEventRepository],
+  exports: [StockManagerEventRepository]
 })
 export class TrackingModule {} 

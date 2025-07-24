@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Query, Logger, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, Query, Logger, BadRequestException, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { Web3Service } from './web3.service';
 import { blockchainConfigs } from '../config/blockchain.config';
@@ -86,6 +86,98 @@ export class Web3Controller {
       return {
         success: false,
         message: 'Failed to store previous events',
+        error: error.message
+      };
+    }
+  }
+
+  @Post('trigger-backfill')
+  @ApiOperation({ summary: 'Manually trigger backfill for missed events' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Backfill triggered successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: { type: 'string', example: 'Backfill triggered successfully' },
+        blockCount: { type: 'number', example: 10000 }
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiQuery({
+    name: 'blockCount',
+    required: false,
+    description: 'Number of blocks to backfill (default: 10000)',
+    example: '10000'
+  })
+  async triggerBackfill(@Query('blockCount') blockCount?: string) {
+    try {
+      this.logger.log('Received request to trigger backfill');
+      
+      const blockCountNumber = blockCount ? parseInt(blockCount) : 10000;
+      
+      if (blockCountNumber <= 0 || blockCountNumber > 50000) {
+        throw new BadRequestException('Block count must be between 1 and 50000');
+      }
+
+      await this.web3Service.triggerManualBackfill(blockCountNumber);
+
+      return {
+        success: true,
+        message: 'Backfill triggered successfully',
+        blockCount: blockCountNumber
+      };
+    } catch (error) {
+      this.logger.error('Error triggering backfill:', error);
+      
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      
+      return {
+        success: false,
+        message: 'Failed to trigger backfill',
+        error: error.message
+      };
+    }
+  }
+
+  @Get('backfill-status')
+  @ApiOperation({ summary: 'Get backfill process status' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Backfill status retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        status: {
+          type: 'object',
+          properties: {
+            isRunning: { type: 'boolean', example: true },
+            lastRun: { type: 'string', format: 'date-time', nullable: true },
+            nextRun: { type: 'string', format: 'date-time', nullable: true }
+          }
+        }
+      }
+    }
+  })
+  async getBackfillStatus() {
+    try {
+      const status = this.web3Service.getBackfillStatus();
+      
+      return {
+        success: true,
+        status
+      };
+    } catch (error) {
+      this.logger.error('Error getting backfill status:', error);
+      
+      return {
+        success: false,
+        message: 'Failed to get backfill status',
         error: error.message
       };
     }

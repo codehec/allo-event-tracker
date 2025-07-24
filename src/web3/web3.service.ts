@@ -1,8 +1,8 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import Web3 from 'web3';
 import { EventEmitter } from 'events';
-import { EventRepository } from '../repositories/event.repository';
-import { Event } from '../entities/event.entity';
+import { StockManagerEventRepository } from '../repositories/stock_manager_events.repository';
+import { StockManagerEvent } from '../entities/stock_manager_events';
 
 export interface BlockchainConfig {
   name: string;
@@ -33,15 +33,19 @@ export class Web3Service extends EventEmitter implements OnModuleDestroy {
   private web3Connections: Map<string, Web3> = new Map();
   private subscriptions: Map<string, any> = new Map();
   private connected = false;
+  private backfillInterval: NodeJS.Timeout | null = null;
+  private blockchainConfigs: BlockchainConfig[] = [];
 
   constructor(
-    private readonly eventRepository: EventRepository
+    private readonly eventRepository: StockManagerEventRepository
   ) {
     super();
   }
 
   async connectToMultipleChains(blockchainConfigs: BlockchainConfig[]): Promise<void> {
     this.logger.log('Connecting to blockchains');
+    
+    this.blockchainConfigs = blockchainConfigs;
 
     for (const config of blockchainConfigs) {
       try {
@@ -53,6 +57,8 @@ export class Web3Service extends EventEmitter implements OnModuleDestroy {
 
     this.connected = true;
     this.logger.log('Connection setup completed');
+    
+    this.startHourlyBackfill();
   }
 
   private async connectToChain(config: BlockchainConfig): Promise<void> {
@@ -70,8 +76,9 @@ export class Web3Service extends EventEmitter implements OnModuleDestroy {
 
       const provider = web3.provider as any;
       if (provider) {
-        provider.on('connect', () => {
+        provider.on('connect', async() => {
           this.logger.log(`WebSocket connected to ${config.name}`);
+          await this.subscribeToEvents(config.name, config.contracts);
         });
 
         provider.on('error', (error: any) => {
@@ -87,7 +94,7 @@ export class Web3Service extends EventEmitter implements OnModuleDestroy {
         });
       }
 
-      await this.subscribeToEvents(config.name, config.contracts);
+
 
     } catch (error) {
       this.logger.error(`Failed to connect to ${config.name}:`, error);
@@ -110,7 +117,11 @@ export class Web3Service extends EventEmitter implements OnModuleDestroy {
       });
 
       subscription.on('data', async (log: any) => {
-        await this.processLog(chainName, contracts, log);
+        try {
+          await this.processLog(chainName, contracts, log);
+        } catch (error) {
+          this.logger.error(`Error processing log data on ${chainName}:`, error);
+        }
       });
 
       subscription.on('error', (error: any) => {
@@ -128,7 +139,17 @@ export class Web3Service extends EventEmitter implements OnModuleDestroy {
   }
 
   private async processLog(chainName: string, contracts: ContractConfig[], log: any): Promise<void> {
+    if (!log) {
+      this.logger.warn('Received null or undefined log object');
+      return;
+    }
+
     const contractAddress = log.address?.toLowerCase();
+    if (!contractAddress) {
+      this.logger.warn('Log object missing address property');
+      return;
+    }
+
     const contract = contracts.find(c => c.address.toLowerCase() === contractAddress);
     
     if (!contract) {
@@ -178,6 +199,11 @@ export class Web3Service extends EventEmitter implements OnModuleDestroy {
 
   private async processDepositedEvent(chainName: string, contract: ContractConfig, log: any, web3: Web3): Promise<void> {
     try {
+      if (!log || !log.data || !log.topics || log.topics.length < 4 || !log.blockNumber || !log.transactionHash) {
+        this.logger.warn('Invalid log object for Deposited event processing');
+        return;
+      }
+
       const decodedLog = web3.eth.abi.decodeLog(
         [
           { type: 'address', name: 'user', indexed: true },
@@ -190,6 +216,12 @@ export class Web3Service extends EventEmitter implements OnModuleDestroy {
         log.data,
         [log.topics[1], log.topics[2], log.topics[3]]
       );
+
+      if (!decodedLog.user || !decodedLog.assetToken || !decodedLog.stablecoin || 
+          decodedLog.amount === undefined || decodedLog.tokenAmount === undefined || decodedLog.fee === undefined) {
+        this.logger.warn('Invalid decoded log data for Deposited event');
+        return;
+      }
 
       const { date, timestamp } = await this.getBlockDateFromTimestamp(web3, log.blockNumber);
       const eventData: BlockchainEventData = {
@@ -212,7 +244,7 @@ export class Web3Service extends EventEmitter implements OnModuleDestroy {
 
       await this.storeEventInDatabase(eventData, contract.name);
       this.emit('event', eventData);
-      this.logger.log(`Deposited event from ${contract.name} on ${chainName}:`, eventData);
+      this.logger.log(`Deposited event from ${contract.name} on ${chainName}`);
     } catch (error) {
       this.logger.error(`Error processing Deposited event: ${error.message}`);
     }
@@ -220,6 +252,11 @@ export class Web3Service extends EventEmitter implements OnModuleDestroy {
 
   private async processRedeemedEvent(chainName: string, contract: ContractConfig, log: any, web3: Web3): Promise<void> {
     try {
+      if (!log || !log.data || !log.topics || log.topics.length < 4 || !log.blockNumber || !log.transactionHash) {
+        this.logger.warn('Invalid log object for Redeemed event processing');
+        return;
+      }
+
       const decodedLog = web3.eth.abi.decodeLog(
         [
           { type: 'address', name: 'user', indexed: true },
@@ -233,9 +270,15 @@ export class Web3Service extends EventEmitter implements OnModuleDestroy {
         [log.topics[1], log.topics[2], log.topics[3]]
       );
 
+      if (!decodedLog.user || !decodedLog.assetToken || !decodedLog.stablecoin || 
+          decodedLog.tokenAmount === undefined || decodedLog.amount === undefined || decodedLog.fee === undefined) {
+        this.logger.warn('Invalid decoded log data for Redeemed event');
+        return;
+      }
+
       const { date, timestamp } = await this.getBlockDateFromTimestamp(web3, log.blockNumber);
 
-      const eventData = {
+      const eventData: BlockchainEventData = {
         chainName,
         contractAddress: contract.address,
         eventName: 'Redeemed',
@@ -255,7 +298,7 @@ export class Web3Service extends EventEmitter implements OnModuleDestroy {
 
       await this.storeEventInDatabase(eventData, contract.name);
       this.emit('event', eventData);
-      this.logger.log(`Redeemed event from ${contract.name} on ${chainName}:`, eventData);
+      this.logger.log(`Redeemed event from ${contract.name} on ${chainName}`);
     } catch (error) {
       this.logger.error(`Error processing Redeemed event: ${error.message}`);
     }
@@ -269,22 +312,30 @@ export class Web3Service extends EventEmitter implements OnModuleDestroy {
         return;
       }
 
-      const dbEvent: Partial<Event> = {
-        chain_name: eventData.chainName,
+      const dbEvent: Partial<StockManagerEvent> = {
+        network: eventData.chainName,
         event_type: eventData.eventName.toLowerCase(),
-        contract_address: eventData.contractAddress,
-        tx_hash: eventData.txHash,
-        block_number: parseInt(eventData.blockNumber),
-        user: eventData.eventData.user,
-        asset_token: eventData.eventData.assetToken,
-        stablecoin: eventData.eventData.stablecoin,
-        amount: eventData.eventData.amount,
-        token_amount: eventData.eventData.tokenAmount,
+        wallet_address: eventData.eventData.user,
+        asset_token_address: eventData.eventData.assetToken,
+        stablecoin_address: eventData.eventData.stablecoin,
         fee: eventData.eventData.fee,
-        event_data: eventData.eventData,
+        block_number: parseInt(eventData.blockNumber),
+        transaction_hash: eventData.txHash,
         timestamp: eventData.timestamp,
         date: new Date(eventData.date)
       };
+
+      if (eventData.eventName.toLowerCase() === 'deposited') {
+        dbEvent.amount_deposited = eventData.eventData.amount;
+        dbEvent.tokens_minted = eventData.eventData.tokenAmount;
+        dbEvent.tokens_redeemed = '0';
+        dbEvent.amount_returned = '0';
+      } else if (eventData.eventName.toLowerCase() === 'redeemed') {
+        dbEvent.tokens_redeemed = eventData.eventData.tokenAmount;
+        dbEvent.amount_returned = eventData.eventData.amount;
+        dbEvent.amount_deposited = '0';
+        dbEvent.tokens_minted = '0';
+      }
 
       await this.eventRepository.create(dbEvent);
       this.logger.log(`${eventData.eventName} event stored in database: ${eventData.txHash}`);
@@ -294,8 +345,6 @@ export class Web3Service extends EventEmitter implements OnModuleDestroy {
   }
 
   async storePreviousEvents(blockchainConfigs: BlockchainConfig[], fromBlock?: number): Promise<void> {
-    this.logger.log('Starting to fetch and store previous events...');
-
     for (const config of blockchainConfigs) {
       try {
         await this.storePreviousEventsForChain(config, fromBlock);
@@ -303,7 +352,6 @@ export class Web3Service extends EventEmitter implements OnModuleDestroy {
         this.logger.error(`Failed to store previous events for ${config.name}: ${error.message}`);
       }
     }
-
     this.logger.log('Finished storing previous events');
   }
 
@@ -316,9 +364,7 @@ export class Web3Service extends EventEmitter implements OnModuleDestroy {
 
     try {
       const currentBlock = await web3.eth.getBlockNumber();
-      const startBlock = fromBlock || Math.max(0, Number(currentBlock) - 100000);
-
-      this.logger.log(`Fetching events for ${config.name} from block ${startBlock} to ${currentBlock}`);
+      const startBlock = fromBlock || Math.max(0, Number(currentBlock) - 80000);
 
       for (const contract of config.contracts) {
         await this.fetchAndStoreContractEvents(web3, config.name, contract, startBlock, Number(currentBlock));
@@ -341,8 +387,6 @@ export class Web3Service extends EventEmitter implements OnModuleDestroy {
       for (let block = fromBlock; block <= toBlock; block += batchSize) {
         const endBlock = Math.min(block + batchSize - 1, toBlock);
         
-        this.logger.log(`Fetching events for ${contract.name} on ${chainName} from block ${block} to ${endBlock}`);
-
         const depositedEvents = await web3.eth.getPastLogs({
           address: contract.address,
           fromBlock: web3.utils.toHex(block),
@@ -365,7 +409,7 @@ export class Web3Service extends EventEmitter implements OnModuleDestroy {
           await this.processRedeemedEvent(chainName, contract, log, web3);
         }
 
-        this.logger.log(`Processed ${depositedEvents.length} deposited and ${redeemedEvents.length} redeemed events for ${contract.name}`);
+        this.logger.log(`Processed`);
       }
     } catch (error) {
       this.logger.error(`Error fetching events for ${contract.name} on ${chainName}: ${error.message}`);
@@ -419,7 +463,174 @@ export class Web3Service extends EventEmitter implements OnModuleDestroy {
     this.connected = false;
   }
 
+  private startHourlyBackfill(): void {
+    if (this.backfillInterval) {
+      clearInterval(this.backfillInterval);
+    }
+
+    setTimeout(() => {
+      this.performHourlyBackfill();
+    }, 5 * 60 * 1000);
+
+    this.backfillInterval = setInterval(() => {
+      this.performHourlyBackfill();
+    }, 60 * 60 * 1000);
+
+    this.logger.log('Hourly backfill process started');
+  }
+
+  private async performHourlyBackfill(): Promise<void> {
+    this.logger.log('Starting hourly backfill process...');
+    
+    try {
+      for (const config of this.blockchainConfigs) {
+        await this.backfillLastBlocks(config, 10000);
+      }
+      this.logger.log('Hourly backfill process completed successfully');
+    } catch (error) {
+      this.logger.error('Error during hourly backfill process:', error);
+    }
+  }
+
+  private async backfillLastBlocks(config: BlockchainConfig, blockCount: number): Promise<void> {
+    const web3 = this.web3Connections.get(config.name);
+    if (!web3) {
+      this.logger.error(`No Web3 connection for ${config.name} during backfill`);
+      return;
+    }
+
+    try {
+      const currentBlock = await web3.eth.getBlockNumber();
+      const fromBlock = Math.max(0, Number(currentBlock) - blockCount);
+
+      for (const contract of config.contracts) {
+        await this.fetchAndStoreContractEventsWithDeduplication(
+          web3, 
+          config.name, 
+          contract, 
+          fromBlock, 
+          Number(currentBlock)
+        );
+      }
+    } catch (error) {
+      this.logger.error(`Error during backfill: ${error.message}`);
+    }
+  }
+
+  private async fetchAndStoreContractEventsWithDeduplication(
+    web3: Web3,
+    chainName: string,
+    contract: ContractConfig,
+    fromBlock: number,
+    toBlock: number
+  ): Promise<void> {
+    try {
+      const batchSize = 1000;
+      let totalProcessed = 0;
+      let totalSkipped = 0;
+      
+      for (let block = fromBlock; block <= toBlock; block += batchSize) {
+        const endBlock = Math.min(block + batchSize - 1, toBlock);
+        
+        const depositedEvents = await web3.eth.getPastLogs({
+          address: contract.address,
+          fromBlock: web3.utils.toHex(block),
+          toBlock: web3.utils.toHex(endBlock),
+          topics: [web3.utils.sha3('Deposited(address,address,address,uint256,uint256,uint256)') || '']
+        });
+
+        const redeemedEvents = await web3.eth.getPastLogs({
+          address: contract.address,
+          fromBlock: web3.utils.toHex(block),
+          toBlock: web3.utils.toHex(endBlock),
+          topics: [web3.utils.sha3('Redeemed(address,address,address,uint256,uint256,uint256)') || '']
+        });
+
+        for (const log of depositedEvents) {
+          const wasProcessed = await this.processEventWithDeduplication(chainName, contract, log, web3, 'Deposited');
+          if (wasProcessed) {
+            totalProcessed++;
+          } else {
+            totalSkipped++;
+          }
+        }
+
+        for (const log of redeemedEvents) {
+          const wasProcessed = await this.processEventWithDeduplication(chainName, contract, log, web3, 'Redeemed');
+          if (wasProcessed) {
+            totalProcessed++;
+          } else {
+            totalSkipped++;
+          }
+        }
+
+        this.logger.debug(`Backfill batch completed for ${contract.name}`);
+      }
+
+      this.logger.log(`Backfill completed for ${contract.name}`);
+    } catch (error) {
+      this.logger.error(`Error during backfill: ${error.message}`);
+    }
+  }
+
+  private async processEventWithDeduplication(
+    chainName: string, 
+    contract: ContractConfig, 
+    log: any, 
+    web3: Web3, 
+    eventType: 'Deposited' | 'Redeemed'
+  ): Promise<boolean> {
+    try {
+      const existingEvent = await this.eventRepository.findByTxHash(log.transactionHash);
+      if (existingEvent) {
+        return false;
+      }
+
+      if (eventType === 'Deposited') {
+        await this.processDepositedEvent(chainName, contract, log, web3);
+      } else if (eventType === 'Redeemed') {
+        await this.processRedeemedEvent(chainName, contract, log, web3);
+      }
+
+      return true;
+    } catch (error) {
+      this.logger.error(`Error processing ${eventType} event with deduplication: ${error.message}`);
+      return false;
+    }
+  }
+
+  public stopHourlyBackfill(): void {
+    if (this.backfillInterval) {
+      clearInterval(this.backfillInterval);
+      this.backfillInterval = null;
+      this.logger.log('Hourly backfill process stopped');
+    }
+  }
+
+  public async triggerManualBackfill(blockCount: number = 10000): Promise<void> {
+    this.logger.log(`Manual backfill triggered for last ${blockCount} blocks`);
+    try {
+      for (const config of this.blockchainConfigs) {
+        await this.backfillLastBlocks(config, blockCount);
+      }
+      this.logger.log('Manual backfill completed successfully');
+    } catch (error) {
+      this.logger.error('Error during manual backfill:', error);
+      throw error;
+    }
+  }
+
+  public getBackfillStatus(): { isRunning: boolean; lastRun?: Date; nextRun?: Date } {
+    const isRunning = this.backfillInterval !== null;
+    return {
+      isRunning,
+      lastRun: undefined,
+      nextRun: undefined
+    };
+  }
+
   async onModuleDestroy() {
+    this.stopHourlyBackfill();
     await this.disconnect();
   }
 }

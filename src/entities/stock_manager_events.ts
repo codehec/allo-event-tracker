@@ -1,45 +1,45 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
 
-@Entity('events')
-export class Event {
+@Entity('stock_manager_events')
+export class StockManagerEvent {
   @PrimaryGeneratedColumn('uuid')
   id: string;
-
-  @Column()
-  chain_name: string;
 
   @Column()
   event_type: string;
 
   @Column()
-  contract_address: string;
+  wallet_address: string;
 
   @Column()
-  tx_hash: string;
+  asset_token_address: string;
+
+  @Column()
+  stablecoin_address: string;
+
+  @Column()
+  amount_deposited: string;
+
+  @Column()
+  tokens_minted: string;
+
+  @Column()
+  tokens_redeemed: string;
+
+  @Column()
+  amount_returned: string;
+
+  @Column()
+  fee: string;
+
+  @Column()
+  network: string;
 
   @Column()
   block_number: number;
 
   @Column()
-  user: string;
-
-  @Column()
-  asset_token: string;
-
-  @Column()
-  stablecoin: string;
-
-  @Column()
-  amount: string;
-
-  @Column()
-  token_amount: string;
-
-  @Column()
-  fee: string;
-
-  @Column({ type: 'jsonb' })
-  event_data: Record<string, any>;
+  transaction_hash: string;
 
   @Column()
   timestamp: string;

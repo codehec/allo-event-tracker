@@ -543,5 +543,3 @@ export class GetFilteredEventsDto {
   @Transform(({ value }) => parseInt(value))
   offset?: number = 0;
 }
-
- 
