@@ -13,8 +13,8 @@ export class GetDailyTokenAmountsDto {
 
   @ApiProperty({
     description: 'Asset token address',
-    example: '0x7c3BB5892D9D12e93aBcB8C34f2197DC56707564',
-    default: '0x7c3BB5892D9D12e93aBcB8C34f2197DC56707564'
+    example: '0x8Be4948ec40CefaB6F7E4D10beFebCAF5f291316',
+    default: '0x8Be4948ec40CefaB6F7E4D10beFebCAF5f291316'
   })
   @IsString()
   assetTokenAddress: string;
@@ -47,8 +47,8 @@ export class GetTokenSummaryDto {
 
   @ApiProperty({
     description: 'Asset token address',
-    example: '0x7c3BB5892D9D12e93aBcB8C34f2197DC56707564',
-    default: '0x7c3BB5892D9D12e93aBcB8C34f2197DC56707564'
+    example: '0x8Be4948ec40CefaB6F7E4D10beFebCAF5f291316',
+    default: '0x8Be4948ec40CefaB6F7E4D10beFebCAF5f291316'
   })
   @IsString()
   assetTokenAddress: string;
@@ -81,8 +81,8 @@ export class GetWalletEventsDto {
 
   @ApiProperty({
     description: 'Wallet address',
-    example: '0x7c897A2E4021E2dE197395Fa6731eDE219354c62',
-    default: '0x7c897A2E4021E2dE197395Fa6731eDE219354c62'
+    example: '0x79A36ed7D310B0066D144ef90C383f38C13E507A',
+    default: '0x79A36ed7D310B0066D144ef90C383f38C13E507A'
   })
   @IsString()
   walletAddress: string;
@@ -154,8 +154,8 @@ export class GetWalletSummaryDto {
 
   @ApiProperty({
     description: 'Wallet address',
-    example: '0x7c897A2E4021E2dE197395Fa6731eDE219354c62',
-    default: '0x7c897A2E4021E2dE197395Fa6731eDE219354c62'
+    example: '0x79A36ed7D310B0066D144ef90C383f38C13E507A',
+    default: '0x79A36ed7D310B0066D144ef90C383f38C13E507A'
   })
   @IsString()
   walletAddress: string;
@@ -188,8 +188,8 @@ export class GetWalletDailyActivityDto {
 
   @ApiProperty({
     description: 'Wallet address',
-    example: '0x7c897A2E4021E2dE197395Fa6731eDE219354c62',
-    default: '0x7c897A2E4021E2dE197395Fa6731eDE219354c62'
+    example: '0x79A36ed7D310B0066D144ef90C383f38C13E507A',
+    default: '0x79A36ed7D310B0066D144ef90C383f38C13E507A'
   })
   @IsString()
   walletAddress: string;
@@ -222,7 +222,7 @@ export class GetTotalFeesCollectedDto {
 
   @ApiProperty({
     description: 'Asset token address (optional)',
-    example: '0x7c3BB5892D9D12e93aBcB8C34f2197DC56707564',
+    example: '0x8Be4948ec40CefaB6F7E4D10beFebCAF5f291316',
     required: false
   })
   @IsOptional()
@@ -257,7 +257,7 @@ export class GetAggregatedAnalyticsDto {
 
   @ApiProperty({
     description: 'Asset token address (optional)',
-    example: '0x7c3BB5892D9D12e93aBcB8C34f2197DC56707564',
+    example: '0x8Be4948ec40CefaB6F7E4D10beFebCAF5f291316',
     required: false
   })
   @IsOptional()
@@ -292,8 +292,8 @@ export class GetUserTransactionHistoryDto {
 
   @ApiProperty({
     description: 'Wallet address',
-    example: '0x7c897A2E4021E2dE197395Fa6731eDE219354c62',
-    default: '0x7c897A2E4021E2dE197395Fa6731eDE219354c62'
+    example: '0x79A36ed7D310B0066D144ef90C383f38C13E507A',
+    default: '0x79A36ed7D310B0066D144ef90C383f38C13E507A'
   })
   @IsString()
   walletAddress: string;
@@ -351,15 +351,15 @@ export class GetTokenActivitySummaryDto {
 
   @ApiProperty({
     description: 'Asset token address',
-    example: '0x7c3BB5892D9D12e93aBcB8C34f2197DC56707564',
-    default: '0x7c3BB5892D9D12e93aBcB8C34f2197DC56707564'
+    example: '0x8Be4948ec40CefaB6F7E4D10beFebCAF5f291316',
+    default: '0x8Be4948ec40CefaB6F7E4D10beFebCAF5f291316'
   })
   @IsString()
   assetTokenAddress: string;
 
   @ApiProperty({
     description: 'Stablecoin address',
-    example: '0x7c897A2E4021E2dE197395Fa6731eDE219354c62'
+    example: '0x79A36ed7D310B0066D144ef90C383f38C13E507A'
   })
   @IsString()
   stablecoinAddress: string;
@@ -392,8 +392,8 @@ export class GetTopUsersDto {
 
   @ApiProperty({
     description: 'Asset token address',
-    example: '0x7c3BB5892D9D12e93aBcB8C34f2197DC56707564',
-    default: '0x7c3BB5892D9D12e93aBcB8C34f2197DC56707564'
+    example: '0x8Be4948ec40CefaB6F7E4D10beFebCAF5f291316',
+    default: '0x8Be4948ec40CefaB6F7E4D10beFebCAF5f291316'
   })
   @IsString()
   assetTokenAddress: string;
@@ -447,7 +447,7 @@ export class GetFilteredEventsDto {
 
   @ApiProperty({
     description: 'Asset token address (optional)',
-    example: '0x7c3BB5892D9D12e93aBcB8C34f2197DC56707564',
+    example: '0x8Be4948ec40CefaB6F7E4D10beFebCAF5f291316',
     required: false
   })
   @IsOptional()
@@ -456,7 +456,7 @@ export class GetFilteredEventsDto {
 
   @ApiProperty({
     description: 'Wallet address (optional)',
-    example: '0x7c897A2E4021E2dE197395Fa6731eDE219354c62',
+    example: '0x79A36ed7D310B0066D144ef90C383f38C13E507A',
     required: false
   })
   @IsOptional()
