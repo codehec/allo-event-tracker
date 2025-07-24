@@ -11,7 +11,7 @@ export class Web3Controller {
 
   constructor(private readonly web3Service: Web3Service) {}
 
-  @Post('store-previous-events')
+  @Get('store-previous-events')
   @ApiOperation({ summary: 'Store previous blockchain events' })
   @ApiResponse({ 
     status: 200, 
@@ -44,14 +44,13 @@ export class Web3Controller {
     example: '30000000'
   })
   async storePreviousEvents(
-    @Body() body: StorePreviousEventsDto,
+    @Query('chainId') chainId: number,
     @Query('fromBlock') fromBlock?: string
   ) {
     try {
       this.logger.log('Received request to store previous events');
       
-      const { chainId } = body;
-      const fromBlockNumber = fromBlock ? parseInt(fromBlock) : body.fromBlock;
+      const fromBlockNumber = fromBlock ? parseInt(fromBlock) : undefined;
 
       if (!chainId) {
         throw new BadRequestException('Chain ID is required');

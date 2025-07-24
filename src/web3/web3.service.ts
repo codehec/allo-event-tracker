@@ -243,7 +243,6 @@ export class Web3Service extends EventEmitter implements OnModuleDestroy {
       };
 
       await this.storeEventInDatabase(eventData, contract.name);
-      this.emit('event', eventData);
       this.logger.log(`Deposited event from ${contract.name} on ${chainName}`);
     } catch (error) {
       this.logger.error(`Error processing Deposited event: ${error.message}`);
@@ -297,7 +296,6 @@ export class Web3Service extends EventEmitter implements OnModuleDestroy {
       };
 
       await this.storeEventInDatabase(eventData, contract.name);
-      this.emit('event', eventData);
       this.logger.log(`Redeemed event from ${contract.name} on ${chainName}`);
     } catch (error) {
       this.logger.error(`Error processing Redeemed event: ${error.message}`);
@@ -409,7 +407,7 @@ export class Web3Service extends EventEmitter implements OnModuleDestroy {
           await this.processRedeemedEvent(chainName, contract, log, web3);
         }
 
-        this.logger.log(`Processed`);
+        this.logger.log(`Processed Events for block ${block} to ${endBlock}`);
       }
     } catch (error) {
       this.logger.error(`Error fetching events for ${contract.name} on ${chainName}: ${error.message}`);
